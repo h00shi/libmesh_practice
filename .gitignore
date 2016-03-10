@@ -6,6 +6,8 @@
 *.e
 *.exo
 *.vtu
+*out/*
+*out/
 
 # gmsh garbage
 *.pos
@@ -13,3 +15,6 @@
 # emacs garbage
 *~
 *\#*\#
+
+# make system temp
+*.depend
