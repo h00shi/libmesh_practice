@@ -121,17 +121,30 @@ int main (int argc, char** argv)
 	system_steady.add_variable("tau",FIRST);
 	system_steady.attach_assemble_function (assemble_steady);
 
-	// set global options
-	equation_systems.parameters.set<Real>("time_write")= time_write;
-	equation_systems.parameters.set<EquationSystems*>("es")= &equation_systems;
-
-
 	// init system
 	equation_systems.init ();
 	equation_systems.print_info();
 
 	// solve the steady state
 	system_steady.solve();
+
+	// set global options
+	equation_systems.parameters.set<Real>("time_write")= time_write;
+	equation_systems.parameters.set<EquationSystems*>("equation_systems")= &equation_systems;
+	{
+		const uint sig_var = system_steady.variable_number ("sig");
+		const uint tau_var = system_steady.variable_number ("tau");
+
+		std::vector<uint> vars;
+		vars.push_back(sig_var);
+		vars.push_back(tau_var);
+
+		//MeshFunction mf(equation_systems,*system_steady.solution,system_steady.get_dof_map(), vars);
+		MeshFunction mf(equation_systems,*system_steady.current_local_solution,system_steady.get_dof_map(),sig_var);
+		mf.init();
+
+		equation_systems.parameters.set<MeshFunction*>("mesh_function")= &mf;
+	}
 
 	//write the first time step
 	std::string exodus_filename = "transient_ex1.e";
@@ -178,6 +191,17 @@ int main (int argc, char** argv)
 		system_heat.solve();
 		assemble_err(equation_systems);
 
+		//test mesh funtion
+		{
+			MeshFunction &mf = *equation_systems.parameters.set<MeshFunction*>("mesh_function");
+			Point p; p(0)=M_PI/2.; p(1)=0;
+			//DenseVector<Number> Uss;
+			//Uss.resize(2);
+			//mf(p,0,Uss);
+			//std::cout << Uss(0) << " " << Uss(1) << " " << mf(p) << std::endl;
+			std::cout << mf(p) << std::endl;
+		}
+
 		// Output evey 10 timesteps to file.
 		if ((t_step+1)%10 == 0)
 		{
@@ -201,24 +225,17 @@ Number exact_value_heat (const Point& p,const Parameters& param,
 
  	ans =  exact_solution_1d(p(0), param.get<Real>("time"));
 
-//	double t = param.get<Real>("time");
-//	EquationSystems &es = *param.get<EquationSystems*>("es");
-//	LinearImplicitSystem & system = es.get_system<LinearImplicitSystem> ("Steady");
-//	const uint sig_var = system.variable_number ("sig");
-//	const uint tau_var = system.variable_number ("tau");
-//
-//	std::vector<uint> vars;
-//	vars.push_back(sig_var);
-//	vars.push_back(tau_var);
-//
-//
-//	MeshFunction mf(es,*system.current_local_solution,system.get_dof_map(), vars);
-//	mf.init();
-//
-//	DenseVector<Number> Uss;
-//	Uss.resize(2);
-//	//mf(p, t, Uss);
-//	//ans =  Uss(sig_var) * cos(t) - Uss(tau_var) * sin(t);
+	double t = param.get<Real>("time");
+	MeshFunction &mf = *param.get<MeshFunction*>("mesh_function");
+	EquationSystems &es = *param.get<EquationSystems*>("equation_systems");
+	LinearImplicitSystem& system = es.get_system<LinearImplicitSystem> ("Steady");
+	const uint sig_var = system.variable_number ("sig");
+	const uint tau_var = system.variable_number ("tau");
+
+	DenseVector<Number> Uss;
+	Uss.resize(2);
+	//mf(p, t, Uss);
+	ans =  Uss(tau_var) * cos(t) + Uss(sig_var) * sin(t);
 
 	return ans;
 }
