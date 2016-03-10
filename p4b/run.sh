@@ -1,7 +1,7 @@
 ## solve until t=20
 
 EXEC="./$1"
-OPT="--use-laspack NX=100 WT=15"
+OPT="--use-laspack NX=100 WT=13"
 
 $EXEC $OPT NT=20 dt=1 2> out/err20
 $EXEC $OPT NT=40 dt=0.5 2> out/err40

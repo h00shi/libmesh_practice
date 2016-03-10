@@ -1,7 +1,7 @@
 ######################################################################
 #
 # Template libMesh application Makefile
-LIBMESH_DIR ?= /home/hooshi/code/libmesh/serial-debug-metis-nopetsc
+#LIBMESH_DIR ?= /home/hooshi/code/libmesh/serial-debug-metis-nopetsc
 
 
 # include the library options determined by configure
@@ -42,7 +42,7 @@ steady: 1d_steady-$(METHOD)
 	@echo "Linking "$@"..."
 	@$(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=link \
 	  $(libmesh_CXX) $(libmesh_CXXFLAGS) $^ -o $@ $(libmesh_LIBS) $(libmesh_LDFLAGS) $(EXTERNAL_FLAGS)
-	rm -rf $^
+	@rm -rf $^
 
 1d_steady-$(METHOD): 1d_steady.$(obj-suffix) 
 	@echo "Linking "$@"..."
@@ -70,6 +70,9 @@ echo:
 	@echo objects = $(objects)
 	@echo target = $(target)
 	@echo libmeshrun = ${LIBMESH_RUN}
+	@echo LIBMESH_DIR = ${LIBMESH_DIR}
+	@echo $(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=link \
+	  $(libmesh_CXX) $(libmesh_CXXFLAGS) $^ -o $@ $(libmesh_LIBS) $(libmesh_LDFLAGS) $(EXTERNAL_FLAGS)
 
 
 # include the dependency list

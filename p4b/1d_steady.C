@@ -171,7 +171,7 @@ int main (int argc, char** argv)
 		<<  "..."
 		<< std::endl;
 
-		// update the old solutin
+		// update the old solution
 		*system_heat.old_local_solution = *system_heat.current_local_solution;
 
 		// solve
@@ -199,7 +199,7 @@ Number exact_value_heat (const Point& p,const Parameters& param,
 {
 	Number ans = 0;
 
- 	//ans =  exact_solution_1d(p(0), param.get<Real>("time"));
+ 	ans =  exact_solution_1d(p(0), param.get<Real>("time"));
 
 //	double t = param.get<Real>("time");
 //	EquationSystems &es = *param.get<EquationSystems*>("es");
@@ -396,23 +396,25 @@ void assemble_err(EquationSystems& es)
 	const unsigned int dim = mesh.mesh_dimension();
 
 	// systems
-	TransientLinearImplicitSystem & system_heat = es.get_system("Heat");
-	ExplicitSystem & system_err = es.get_system ("Error");
-	LinearImplicitSystem & system_ss = es.get_system ("Steady");
+	TransientLinearImplicitSystem & system_heat =
+			es.get_system<TransientLinearImplicitSystem>("Heat");
+	ExplicitSystem & system_err =
+			es.get_system<ExplicitSystem> ("Error");
+	//LinearImplicitSystem & system_ss = es.get_system ("Steady");
 
 	// indexing
 	const DofMap& dof_map = system_heat.get_dof_map();
 	const DofMap& err_dof_map = system_err.get_dof_map();
-	const DofMap& ss_dof_map = system_ss.get_dof_map();
+	//const DofMap& ss_dof_map = system_ss.get_dof_map();
 	std::vector<dof_id_type> dof_indices;
 	std::vector<dof_id_type> err_dof_indices;
-	std::vector<dof_id_type> ss_dof_indices;
-	std::vector<dof_id_type> sig_dof_indices;
-	std::vector<dof_id_type> tau_dof_indices;
+	//std::vector<dof_id_type> ss_dof_indices;
+	//std::vector<dof_id_type> sig_dof_indices;
+	//std::vector<dof_id_type> tau_dof_indices;
 
 	//numbers
-	const uint sig_var = system_ss.variable_number ("sig");
-	const uint tau_var = system_ss.variable_number ("tau");
+	//const uint sig_var = system_ss.variable_number ("sig");
+	//const uint tau_var = system_ss.variable_number ("tau");
 
 	// finite element for quadrature
 	FEType fe_type = dof_map.variable_type(0);
@@ -421,7 +423,7 @@ void assemble_err(EquationSystems& es)
 	fe->attach_quadrature_rule (&qrule);
 
 	//project the steady state solution
-	//system_err.project_solution(exact_value_heat, NULL, es.parameters);
+	system_err.project_solution(exact_value_heat, NULL, es.parameters);
 
 	// find the error
 	MeshBase::const_element_iterator       el     = mesh.active_local_elements_begin();
@@ -435,15 +437,15 @@ void assemble_err(EquationSystems& es)
 		fe->reinit (elem);
 		dof_map.dof_indices (elem, dof_indices);
 		err_dof_map.dof_indices (elem, err_dof_indices);
-		ss_dof_map.dof_indices (elem, ss_dof_indices);
-		ss_dof_map.dof_indices (elem, sig_dof_indices,sig_var);
-		ss_dof_map.dof_indices (elem, tau_dof_indices,tau_var);
+		//ss_dof_map.dof_indices (elem, ss_dof_indices);
+		//ss_dof_map.dof_indices (elem, sig_dof_indices,sig_var);
+		//ss_dof_map.dof_indices (elem, tau_dof_indices,tau_var);
 
 		for (uint i = 0 ; i < dof_indices.size() ; i++)
 		{
 
-			system_ss.solution->ge
-			system_err.solution->set(err_dof_indices[0], );
+			//system_ss.solution->ge
+			//system_err.solution->set(err_dof_indices[0], );
 
 			libmesh_assert(dof_indices[i] == err_dof_indices[i]);
 			error += elem->volume()/dof_indices.size() *

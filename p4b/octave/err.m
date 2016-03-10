@@ -3,31 +3,31 @@ c = "kbrgmcy";
 
 figure(1), clf, hold on;
 
-load err20
+load ../out/err20
 semilogy(err20(:,1),err20(:,2), "color", c(1),"linewidth", 2);
 
-load err40
+load ../out/err40
 semilogy(err40(:,1),err40(:,2), "color", c(2),"linewidth", 2);
 
-load err80
+load ../out/err80
 semilogy(err80(:,1),err80(:,2), "color", c(3),"linewidth", 2);
 
-load err160
+load ../out/err160
 semilogy(err160(:,1),err160(:,2), "color", c(4),"linewidth", 2);
 
-load err320
+load ../out/err320
 semilogy(err320(:,1),err320(:,2), "color", c(5),"linewidth", 2);
 
-load err640
+load ../out/err640
 semilogy(err640(:,1),err640(:,2), "color", c(6),"linewidth", 2);
 
-load err1280
+load ../out/err1280
 semilogy(err1280(:,1),err1280(:,2), "color", c(7),"linewidth", 2);
 
-load err2560
+load ../out/err2560
 semilogy(err2560(:,1),err2560(:,2), "color", c(1),"linewidth", 2);
 
-load err5120
+load ../out/err5120
 semilogy(err5120(:,1),err5120(:,2), "color", c(2),"linewidth", 2);
 
 

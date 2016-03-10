@@ -18,3 +18,5 @@
 
 # make system temp
 *.depend
+*.libs
+*.o
