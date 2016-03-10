@@ -1,0 +1,15 @@
+# executables
+*-dbg
+*-opt
+
+# output
+*.e
+*.exo
+*.vtu
+
+# gmsh garbage
+*.pos
+
+# emacs garbage
+*~
+*\#*\#
