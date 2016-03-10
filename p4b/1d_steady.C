@@ -93,11 +93,11 @@ int main (int argc, char** argv)
 
 	// create a mesh
 	Mesh mesh(init.comm());
-	MeshTools::Generation::build_line(mesh,n_elem,0.,M_PI,EDGE2);
-	//MeshTools::Generation::build_square(mesh,n_elem,n_elem,
-	//		0.,M_PI,
-	//		0.,M_PI,
-	//		QUAD4);
+	//MeshTools::Generation::build_line(mesh,n_elem,0.,M_PI,EDGE2);
+	MeshTools::Generation::build_square(mesh,n_elem,n_elem,
+			0.,M_PI,
+			0.,M_PI,
+			QUAD4);
 	mesh.print_info();
 
 	// define the system for u
@@ -131,20 +131,6 @@ int main (int argc, char** argv)
 	// set global options
 	equation_systems.parameters.set<Real>("time_write")= time_write;
 	equation_systems.parameters.set<EquationSystems*>("equation_systems")= &equation_systems;
-	{
-		const uint sig_var = system_steady.variable_number ("sig");
-		const uint tau_var = system_steady.variable_number ("tau");
-
-		std::vector<uint> vars;
-		vars.push_back(sig_var);
-		vars.push_back(tau_var);
-
-		//MeshFunction mf(equation_systems,*system_steady.solution,system_steady.get_dof_map(), vars);
-		MeshFunction mf(equation_systems,*system_steady.current_local_solution,system_steady.get_dof_map(),sig_var);
-		mf.init();
-
-		equation_systems.parameters.set<MeshFunction*>("mesh_function")= &mf;
-	}
 
 	//write the first time step
 	std::string exodus_filename = "transient_ex1.e";
@@ -191,17 +177,6 @@ int main (int argc, char** argv)
 		system_heat.solve();
 		assemble_err(equation_systems);
 
-		//test mesh funtion
-		{
-			MeshFunction &mf = *equation_systems.parameters.set<MeshFunction*>("mesh_function");
-			Point p; p(0)=M_PI/2.; p(1)=0;
-			//DenseVector<Number> Uss;
-			//Uss.resize(2);
-			//mf(p,0,Uss);
-			//std::cout << Uss(0) << " " << Uss(1) << " " << mf(p) << std::endl;
-			std::cout << mf(p) << std::endl;
-		}
-
 		// Output evey 10 timesteps to file.
 		if ((t_step+1)%10 == 0)
 		{
@@ -222,21 +197,7 @@ Number exact_value_heat (const Point& p,const Parameters& param,
                     const std::string&, const std::string&)
 {
 	Number ans = 0;
-
  	ans =  exact_solution_1d(p(0), param.get<Real>("time"));
-
-	double t = param.get<Real>("time");
-	MeshFunction &mf = *param.get<MeshFunction*>("mesh_function");
-	EquationSystems &es = *param.get<EquationSystems*>("equation_systems");
-	LinearImplicitSystem& system = es.get_system<LinearImplicitSystem> ("Steady");
-	const uint sig_var = system.variable_number ("sig");
-	const uint tau_var = system.variable_number ("tau");
-
-	DenseVector<Number> Uss;
-	Uss.resize(2);
-	//mf(p, t, Uss);
-	ans =  Uss(tau_var) * cos(t) + Uss(sig_var) * sin(t);
-
 	return ans;
 }
 
@@ -417,21 +378,22 @@ void assemble_err(EquationSystems& es)
 			es.get_system<TransientLinearImplicitSystem>("Heat");
 	ExplicitSystem & system_err =
 			es.get_system<ExplicitSystem> ("Error");
-	//LinearImplicitSystem & system_ss = es.get_system ("Steady");
+	LinearImplicitSystem & system_ss =
+			es.get_system<LinearImplicitSystem> ("Steady");
 
 	// indexing
 	const DofMap& dof_map = system_heat.get_dof_map();
 	const DofMap& err_dof_map = system_err.get_dof_map();
-	//const DofMap& ss_dof_map = system_ss.get_dof_map();
+	const DofMap& ss_dof_map = system_ss.get_dof_map();
 	std::vector<dof_id_type> dof_indices;
 	std::vector<dof_id_type> err_dof_indices;
-	//std::vector<dof_id_type> ss_dof_indices;
-	//std::vector<dof_id_type> sig_dof_indices;
-	//std::vector<dof_id_type> tau_dof_indices;
+	std::vector<dof_id_type> ss_dof_indices;
+	std::vector<dof_id_type> sig_dof_indices;
+	std::vector<dof_id_type> tau_dof_indices;
 
 	//numbers
-	//const uint sig_var = system_ss.variable_number ("sig");
-	//const uint tau_var = system_ss.variable_number ("tau");
+	const uint sig_var = system_ss.variable_number ("sig");
+	const uint tau_var = system_ss.variable_number ("tau");
 
 	// finite element for quadrature
 	FEType fe_type = dof_map.variable_type(0);
@@ -440,7 +402,10 @@ void assemble_err(EquationSystems& es)
 	fe->attach_quadrature_rule (&qrule);
 
 	//project the steady state solution
-	system_err.project_solution(exact_value_heat, NULL, es.parameters);
+	//system_err.project_solution(exact_value_heat, NULL, es.parameters);
+
+	//get time
+	double t = es.parameters.get<Real>("time");
 
 	// find the error
 	MeshBase::const_element_iterator       el     = mesh.active_local_elements_begin();
@@ -451,22 +416,33 @@ void assemble_err(EquationSystems& es)
 	{
 		const Elem* elem = *el;
 
+		// update element data and dof numbers
 		fe->reinit (elem);
 		dof_map.dof_indices (elem, dof_indices);
 		err_dof_map.dof_indices (elem, err_dof_indices);
-		//ss_dof_map.dof_indices (elem, ss_dof_indices);
-		//ss_dof_map.dof_indices (elem, sig_dof_indices,sig_var);
-		//ss_dof_map.dof_indices (elem, tau_dof_indices,tau_var);
+		ss_dof_map.dof_indices (elem, ss_dof_indices);
+		ss_dof_map.dof_indices (elem, sig_dof_indices,sig_var);
+		ss_dof_map.dof_indices (elem, tau_dof_indices,tau_var);
 
+		//get solution at dof's
+		std::vector<Number> sig,tau;
+		system_ss.solution->get(sig_dof_indices, sig);
+		system_ss.solution->get(tau_dof_indices, tau);
+
+		// for dof's
 		for (uint i = 0 ; i < dof_indices.size() ; i++)
 		{
 
-			//system_ss.solution->ge
-			//system_err.solution->set(err_dof_indices[0], );
+			// find the steady state solution at dof
+			double steady_solution = tau[i]*cos(t) + sig[i]*sin(t);
 
-			libmesh_assert(dof_indices[i] == err_dof_indices[i]);
+			// set the error at this dof
+			system_err.solution->set(err_dof_indices[i], steady_solution);
+
+			// update the l2 norm
+			//libmesh_assert(dof_indices[i] == err_dof_indices[i]);
 			error += elem->volume()/dof_indices.size() *
-					pow( system_err.current_solution(dof_indices[i]) - system_heat.current_solution(dof_indices[i]) , 2);
+					pow( steady_solution - system_heat.current_solution(dof_indices[i]) , 2);
 		}
 	}
 	error = sqrt(error);
