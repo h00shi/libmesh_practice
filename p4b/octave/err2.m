@@ -2,6 +2,7 @@
 c = "kbrgmcy";
 
 figure(1), clf, hold on;
+pre="el";
 
 err20=load(["../out/" pre "_err20"]);
 semilogy(err20(:,1),err20(:,2), "color", c(1),"linewidth", 2);
@@ -18,26 +19,11 @@ semilogy(err160(:,1),err160(:,2), "color", c(4),"linewidth", 2);
 err320=load(["../out/" pre "_err320"]);
 semilogy(err320(:,1),err320(:,2), "color", c(5),"linewidth", 2);
 
-err640=load(["../out/" pre "_err640"]);
-semilogy(err640(:,1),err640(:,2), "color", c(6),"linewidth", 2);
 
-err1280=load(["../out/" pre "_err1280"]);
-semilogy(err1280(:,1),err1280(:,2), "color", c(7),"linewidth", 2);
-
-err2560=load(["../out/" pre "_err2560"]);
-semilogy(err2560(:,1),err2560(:,2), "color", c(1),"linewidth", 2);
-
-err5120=load(["../out/" pre "_err5120"]);
-semilogy(err5120(:,1),err5120(:,2), "color", c(2),"linewidth", 2);
-
-
- nt = [20 40 80 160 320 640 1280 2560 5120];
+ nt = [20 40 80 160 320];
 
  err_ = [max(err20(:,2)) max(err40(:,2)) max(err80(:,2)) ...
-            max(err160(:,2)) max(err320(:,2)) ...
-			max(err640(:,2))...
-            max(err1280(:,2))  max(err2560(:,2)) ...
-			max(err5120(:,2)) ];
+            max(err160(:,2)) max(err320(:,2)) ];
 
 p = polyfit (log10(nt),  log10(err_),1);
 
