@@ -5,20 +5,33 @@ figure(1), clf, hold on;
 pre="el";
 
 err20=load(["../out/" pre "_err20"]);
-semilogy(err20(:,1),err20(:,2), "color", c(1),"linewidth", 2);
+semilogy(err20(:,1),err20(:,2), 'o-', "color", c(1),"linewidth", 2);
 
 err40=load(["../out/" pre "_err40"]);
-semilogy(err40(:,1),err40(:,2), "color", c(2),"linewidth", 2);
+semilogy(err40(:,1),err40(:,2), 's-', "color", c(2),"linewidth", 2);
 
 err80=load(["../out/" pre "_err80"]);
-semilogy(err80(:,1),err80(:,2), "color", c(3),"linewidth", 2);
+semilogy(err80(:,1),err80(:,2), '^-', "color", c(3),"linewidth", 2);
 
 err160=load(["../out/" pre "_err160"]);
-semilogy(err160(:,1),err160(:,2), "color", c(4),"linewidth", 2);
+semilogy(err160(:,1),err160(:,2), '.-', "color", c(4),"linewidth", 2);
 
 err320=load(["../out/" pre "_err320"]);
-semilogy(err320(:,1),err320(:,2), "color", c(5),"linewidth", 2);
+semilogy(err320(:,1),err320(:,2), '.-' , "color", c(5),"linewidth", 2);
 
+
+##axis label and range
+hx=xlabel("Time");
+hy=ylabel("|u-u_tp|_L2");
+set(hx, "fontsize", 15, "linewidth", 2);
+set(hy, "fontsize", 15, "linewidth", 2);
+set(gca,  "fontsize", 15);
+
+print("../plt/2d_err.eps","-deps","-FArial", "-color");
+
+#-------------------------------------------------------------
+# refinement
+#-------------------------------------------------------------
 
  nt = [20 40 80 160 320];
 
@@ -29,6 +42,9 @@ p = polyfit (log10(nt),  log10(err_),1);
 
 figure(2), clf, hold on;
 loglog(nt, err_, "bo-", "linewidth", 2);
+nn = [20 320];
+ee = nn .^ (-2) /100;
+loglog(nn, ee, "k--", 'linewidth', 2);
 printf("slope: %.3f \n", -p(1));
 
 ## axis
@@ -42,3 +58,5 @@ hy=ylabel("maximum steady state error");
 set(hx, "fontsize", 15, "linewidth", 2);
 set(hy, "fontsize", 15, "linewidth", 2);
 set(gca,  "fontsize", 15);
+
+print("../plt/2d_ref.eps","-deps","-FArial", "-color");
