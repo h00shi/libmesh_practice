@@ -95,6 +95,7 @@ int main (int argc, char** argv)
 	std::string mesh_name = getpot("mesh","square");
 	const bool exact_time = getpot("exact", false);
 	const bool exo_io = getpot("exo",false);
+	const FEType fetype(FIRST, LAGRANGE);
 
 	// create a mesh
 	Mesh mesh(init.comm());
@@ -118,7 +119,6 @@ int main (int argc, char** argv)
 	{
 		GmshIO gmsh(mesh);
 		gmsh.read(mesh_name);
-		mesh.all_first_order();
 		mesh.prepare_for_use();
 		if(exact_time)
 		{
@@ -126,6 +126,7 @@ int main (int argc, char** argv)
 			return 0;
 		}
 	}
+	//if(fetype.order == FIRST) mesh.all_first_order();
 	mesh.print_info();
 
 	// define the system for u
@@ -134,19 +135,19 @@ int main (int argc, char** argv)
 	// define system for transient problem
 	TransientLinearImplicitSystem & system_heat =
 			equation_systems.add_system<TransientLinearImplicitSystem> ("Heat");
-	system_heat.add_variable("u",FIRST);
+	system_heat.add_variable("u",fetype);
 	system_heat.attach_assemble_function (assemble_heat);
 	system_heat.attach_init_function (init_heat);
 
 	// define the steady state solution
 	ExplicitSystem &system_err = equation_systems.add_system<ExplicitSystem> ("Error");
-	system_err.add_variable("e", FIRST);
+	system_err.add_variable("e", fetype);
 
 	// define the steady state solution
 	LinearImplicitSystem &system_steady =
 	equation_systems.add_system<LinearImplicitSystem> ("Steady");
-	system_steady.add_variable("sig",FIRST);
-	system_steady.add_variable("tau",FIRST);
+	system_steady.add_variable("sig", fetype);
+	system_steady.add_variable("tau", fetype);
 	system_steady.attach_assemble_function (assemble_steady);
 
 	// init system
@@ -201,6 +202,7 @@ int main (int argc, char** argv)
 		<< std::endl;
 
 		// update the old solution
+		*system_heat.older_local_solution = *system_heat.old_local_solution;
 		*system_heat.old_local_solution = *system_heat.current_local_solution;
 
 		// solve
@@ -482,7 +484,8 @@ void assemble_err(EquationSystems& es)
 			// exact time and space - only 1d case
 			if(exact_time)
 			{
-				steady_solution = (*system_err.solution)(err_dof_indices[i]);
+				//steady_solution = (*system_err.solution)(err_dof_indices[i]);
+				steady_solution = system_err.current_solution(err_dof_indices[i]);
 			}
 			// exact time, numerical space
 			else
