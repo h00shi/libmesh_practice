@@ -35,12 +35,11 @@ all: manufactured
 manufactured: driver_manufactured-$(METHOD)
 
 # Production rules:  how to make the target - depends on library configuration
-driver_manufactured-$(METHOD): driver_manufactured.$(obj-suffix) 
+driver_manufactured-$(METHOD): driver_manufactured.$(obj-suffix) linear_elasticity.$(obj-suffix) 
 	@echo "Linking "$@"..."
 	@$(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=link \
 	  $(libmesh_CXX) $(libmesh_CXXFLAGS) $^ -o $@ $(libmesh_LIBS) $(libmesh_LDFLAGS) $(EXTERNAL_FLAGS)
 	@rm -rf $^
-
 
 
 # Useful rules.
