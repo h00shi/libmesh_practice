@@ -45,18 +45,13 @@ int main (int argc, char** argv)
   // Create a 3D mesh distributed across the default MPI communicator.
   Mesh mesh(init.comm(), dim);
 
-  //MeshTools::Generation::build_cube (mesh,
-  //                                   10,
-  //                                  10,
-  //                                   10,
-  //                                   0., 1.,
-  //                                   0., 1.,
-  //                                   0., 1.,
-  //                                   HEX27);
-  GmshIO gmsh(mesh);
-  gmsh.read("../mesh/simple_box_5.msh");
-  mesh.all_second_order(true);
-  mesh.prepare_for_use();
+  // Read the mesh
+  {
+	  GmshIO gmsh(mesh);
+	  gmsh.read("../mesh/simple_box_5.msh");
+	  mesh.all_second_order(true);
+	  mesh.prepare_for_use();
+  }
 
   // Print information about the mesh to the screen.
   mesh.print_info();
@@ -77,9 +72,9 @@ int main (int argc, char** argv)
   petsc_linear_solver->set_solver_configuration(petsc_solver_config);
 
   // Add three displacement variables, u and v, to the system
-  system.add_variable("u", FOURTH, HIERARCHIC);
-  system.add_variable("v", FOURTH, HIERARCHIC);
-  system.add_variable("w", FOURTH, HIERARCHIC);
+  system.add_variable("u", THIRD, HIERARCHIC);
+  system.add_variable("v", THIRD, HIERARCHIC);
+  system.add_variable("w", THIRD, HIERARCHIC);
 
   // add the assembler
   // Hard code material parameters for the sake of simplicity
@@ -105,7 +100,7 @@ int main (int argc, char** argv)
   system.solve();
 
   // Print the errors
-  le.evaluate_errors();
+  le.post_process();
 
   // Plot the solution
   // Use single precision in this case (reduces the size of the exodus file)

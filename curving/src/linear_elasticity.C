@@ -86,9 +86,99 @@ double TestCaseMMS::right_hand_side(const Point& p, const uint n_unknown)
 
 void TestCaseMMS::boundary_penalty(const Point& p, const uint , const uint n_unknown, double &t, double &q)
 {
-	double penalty = 1.e10;
+	const double penalty = 1.e10;
 	q = penalty;
 	t = penalty*exact_solution(p,n_unknown);
+}
+
+void TestCaseSphere::boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q)
+{
+	const double penalty = 1.e10;
+
+	switch(id)
+	{
+	// Perpendicular to x
+	case 1:
+	{
+		// No U displacement
+		if (n_unknown == U)
+		{
+			q = penalty;
+			t = 0;
+		}
+		// Others are free to move
+		else
+		{
+			q = t = 0;
+		}
+		break;
+	}
+
+	// Perpendicular to y
+	case 2:
+	{
+		// No V displacement
+		if (n_unknown == V)
+		{
+			q = penalty;
+			t = 0;
+		}
+		// Others are free to move
+		else
+		{
+			q = t = 0;
+		}
+		break;
+	}
+
+	// Perpendicular to z
+	case 3:
+	{
+		// No W displacement
+		if (n_unknown == W)
+		{
+			q = penalty;
+			t = 0;
+		}
+		// Others are free to move
+		else
+		{
+			q = t = 0;
+		}
+		break;
+	}
+
+	// Outer surface
+	case 4:
+	{
+		// Stop everyone from moving
+		q = penalty;
+		t = 0;
+		break;
+	}
+
+	// The inner surface that must be curved
+	case 5:
+	{
+		// Find the new coordinates
+		Point p_new = _r_in / p.size() * p;
+
+		// Force the displacement
+		q = penalty;
+
+		switch(n_unknown)
+		{
+		case U: t = (p_new(X) - p(X)) * penalty; break;
+		case V: t = (p_new(Y) - p(Y)) * penalty; break;
+		case W: t = (p_new(Z) - p(Z)) * penalty; break;
+		}
+
+		break;
+	}
+
+	//end of case
+	}
+
 }
 
 
@@ -96,21 +186,28 @@ void TestCaseMMS::boundary_penalty(const Point& p, const uint , const uint n_unk
  *                             Assembler                                    *
  ****************************************************************************/
 
-void LinearElasticity::evaluate_errors()
+void LinearElasticity::post_process()
 {
-	ExactValue eval(_test_case);
-	ExactDeriv eder(_test_case);
+	// find the errors
+	if(_test_case.has_exact_solution())
+	{
+		// Wrappers for the exact solution functions
+		ExactValue eval(_test_case);
+		ExactDeriv eder(_test_case);
 
-	ExactSolution esol(es);
-	esol.attach_exact_value(0, &eval);
-	esol.attach_exact_deriv(0, &eder);
-	esol.extra_quadrature_order(1);
-	esol.compute_error("Elasticity", "u");
-	esol.compute_error("Elasticity", "v");
-	esol.compute_error("Elasticity", "w");
+		// Exact solution object
+		ExactSolution esol(es);
+		esol.attach_exact_value(0, &eval);
+		esol.attach_exact_deriv(0, &eder);
+		esol.extra_quadrature_order(1);
 
-	std::cout << esol.l2_error("Elasticity", "u") << " " <<esol.l2_error("Elasticity", "v") << " " << esol.l2_error("Elasticity", "w") << std::endl;
-	std::cout << esol.h1_error("Elasticity", "u") << " " <<esol.h1_error("Elasticity", "v") << " " << esol.h1_error("Elasticity", "w") << std::endl;
+		esol.compute_error("Elasticity", "u");
+		esol.compute_error("Elasticity", "v");
+		esol.compute_error("Elasticity", "w");
+
+		std::cout << esol.l2_error("Elasticity", "u") << " " <<esol.l2_error("Elasticity", "v") << " " << esol.l2_error("Elasticity", "w") << std::endl;
+		std::cout << esol.h1_error("Elasticity", "u") << " " <<esol.h1_error("Elasticity", "v") << " " << esol.h1_error("Elasticity", "w") << std::endl;
+	}
 }
 
 
@@ -232,9 +329,16 @@ void LinearElasticity::assemble()
 
 			 // Assemble the right hand side
 			 DenseVector<Number> f_vec(3);
-			 f_vec(0) = _test_case.right_hand_side(q_point[qp],0);
-			 f_vec(1) = _test_case.right_hand_side(q_point[qp],1);
-			 f_vec(2) = _test_case.right_hand_side(q_point[qp],2);
+			 if (_test_case.has_nonzero_rhs())
+			 {
+				 f_vec(0) = _test_case.right_hand_side(q_point[qp],0);
+				 f_vec(1) = _test_case.right_hand_side(q_point[qp],1);
+				 f_vec(2) = _test_case.right_hand_side(q_point[qp],2);
+			 }
+			 else
+			 {
+				 f_vec(0) = f_vec(1) = f_vec(2) = 0;
+			 }
 			 for (unsigned int dof_i=0; dof_i<n_var_dofs; dof_i++)
 			 {
 				 for(unsigned int i=0; i<3; i++)

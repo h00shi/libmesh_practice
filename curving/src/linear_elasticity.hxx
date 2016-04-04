@@ -83,14 +83,14 @@ protected:
 	  bool _has_exact_solution;
 	  bool _has_nonzero_rhs;
 
-public:
-
 	  // constructor
 	  TestCase(Material &material, bool has_exact_solution, bool has_nonzero_rhs):
 		  _material(material),
 		  _has_exact_solution(has_exact_solution),
 		  _has_nonzero_rhs(has_nonzero_rhs)
 		{}
+
+public:
 
 	  // destructor
 	  virtual ~TestCase(){}
@@ -129,7 +129,7 @@ public:
 	  {return _has_nonzero_rhs;}
 };
 
-/*
+/**
  * Manufactured solution test case.
  */
 class TestCaseMMS: public TestCase
@@ -150,26 +150,53 @@ public:
 	  void boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q);
 };
 
+/**
+ * Curving the sphere test case.
+ */
+class TestCaseSphere: public TestCase
+{
+private:
+	double _r_in, _r_out;
+public:
+
+	  // constructor
+	  TestCaseSphere(Material &material, const double r_in, const double r_out):
+		  TestCase(material, false, false),
+		  _r_in(r_in),
+		  _r_out(r_out)
+		{}
+
+	  // destructor
+	  ~TestCaseSphere(){}
+
+	  // Boundary surfaces should be numbered like this:
+	  // 1-> perpendicular to x
+	  // 2-> perpendicular to y
+	  // 3-> perpendicular to z
+	  // 4-> inner surface
+	  // 5-> outer surface
+	  void boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q);
+};
 
 /****************************************************************************
  *                    Exact solution function wrappers                      *
  ****************************************************************************/
 
 /**
- * Finding the errors
+ * Function wrapper for computing the exact solution
  */
 class ExactValue: public FunctionBase<Number>
 {
 private:
-	TestCase *_test_case;
+	TestCase &_test_case;
 
 public:
 
 	// constructor and destructor
 	ExactValue(TestCase &test_case):
-		_test_case(&test_case)
+		_test_case(test_case)
 	{
-		libmesh_assert(_test_case->has_exact_solution());
+		libmesh_assert(_test_case.has_exact_solution());
 		this->_initialized=true;
 	}
 	~ExactValue(){}
@@ -178,37 +205,37 @@ public:
 	// libmesh musts
 	UniquePtr<FunctionBase<Number> > clone() const libmesh_override
 	{
-		return UniquePtr<FunctionBase<Number> >  (new ExactValue(*_test_case));
+		return UniquePtr<FunctionBase<Number> >  (new ExactValue(_test_case));
 	}
 
 	Number operator() (const Point & p, const Real = 0) libmesh_override
 			{
-		return _test_case->exact_solution(p,0);
+		return _test_case.exact_solution(p,0);
 			}
 
 	virtual void operator() (const Point & p, const Real, DenseVector<Number> & output) libmesh_override
 			{
 		unsigned int size = output.size();
 		for (unsigned int i=0; i != size; ++i)
-			output(i) = _test_case->exact_solution(p,i);
+			output(i) = _test_case.exact_solution(p,i);
 			}
 };
 
+/**
+ * Function wrapper for computing the exact derivative
+ */
 class ExactDeriv: public FunctionBase<Gradient>
 {
 private:
-	TestCase *_test_case;
-
-	// not allowed
-	ExactDeriv(){}
+	TestCase &_test_case;
 
 public:
 
 	// constructor and destructor
 	ExactDeriv(TestCase &test_case):
-		_test_case(&test_case)
+		_test_case(test_case)
 	{
-		libmesh_assert(_test_case->has_exact_solution());
+		libmesh_assert(_test_case.has_exact_solution());
 		this->_initialized=true;
 	}
 	~ExactDeriv(){}
@@ -217,19 +244,19 @@ public:
 	// libmesh musts
 	UniquePtr<FunctionBase<Gradient> > clone() const libmesh_override
 	{
-		return UniquePtr<FunctionBase<Gradient> >  (new ExactDeriv(*_test_case));
+		return UniquePtr<FunctionBase<Gradient> >  (new ExactDeriv(_test_case));
 	}
 
 	Gradient operator() (const Point & p, const Real = 0) libmesh_override
 			{
-		return _test_case->exact_derivative(p,0);
+		return _test_case.exact_derivative(p,0);
 			}
 
 	virtual void operator() (const Point & p, const Real, DenseVector<Gradient> & output) libmesh_override
 			{
 		unsigned int size = output.size();
 		for (unsigned int i=0; i != size; ++i)
-			output(i) = _test_case->exact_derivative(p,i);
+			output(i) = _test_case.exact_derivative(p,i);
 			}
 };
 
@@ -273,7 +300,7 @@ public:
   /**
    * Find the errors if we have a manufactured solution.
    */
-  void evaluate_errors();
+  void post_process();
 
 
   /**
