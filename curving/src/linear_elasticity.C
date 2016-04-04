@@ -157,6 +157,7 @@ void TestCaseSphere::boundary_penalty(const Point& p, const uint id, const uint 
 		break;
 	}
 
+
 	// The inner surface that must be curved
 	case 5:
 	{
@@ -175,6 +176,14 @@ void TestCaseSphere::boundary_penalty(const Point& p, const uint id, const uint 
 
 		break;
 	}
+
+	// The upper surface is freee!!!
+	case 6:
+		t=q=0;
+		break;
+
+	default:
+		libmesh_assert(0);
 
 	//end of case
 	}

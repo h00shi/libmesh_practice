@@ -22,6 +22,9 @@ public:
 
     ierr = PCSetType (_petsc_linear_solver.pc(), const_cast<PCType>(PCBJACOBI));
     libmesh_assert(ierr == 0);
+
+    ierr = KSPSetTolerances(_petsc_linear_solver.ksp(), 1e-20, 1e-11, 1e30, 3000);
+    libmesh_assert(ierr == 0);
   }
 
   // The linear solver object that we are configuring
@@ -48,7 +51,7 @@ int main (int argc, char** argv)
   // Read the mesh
   {
 	  GmshIO gmsh(mesh);
-	  gmsh.read("../mesh/simple_box_5.msh");
+	  gmsh.read("../mesh/sphere.msh");
 	  mesh.all_second_order(true);
 	  mesh.prepare_for_use();
   }
@@ -86,7 +89,8 @@ int main (int argc, char** argv)
   const double mu = young_modulus/(2.*(1.+poisson_ratio));
 
   Material material(lambda, mu);
-  TestCaseMMS test_case(material);
+  //TestCaseMMS test_case(material);
+  TestCaseSphere test_case(material, 1, 2);
   LinearElasticity le(equation_systems, material, test_case);
   system.attach_assemble_object(le);
 
