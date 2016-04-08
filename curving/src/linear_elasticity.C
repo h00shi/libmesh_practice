@@ -1,5 +1,7 @@
 #include "linear_elasticity.hxx"
 
+#include "mpi.h"
+
 
 /****************************************************************************
  *                                Test Case                                 *
@@ -188,6 +190,212 @@ void TestCaseSphere::boundary_penalty(const Point& p, const uint id, const uint 
 	//end of case
 	}
 
+}
+
+TestCaseBump::TestCaseBump(Material &material, const double r, const double h, const double c):
+			  TestCase(material, false, false),
+			  _r(r),
+			  _h(h),
+			  _c(c)
+{
+	PetscErrorCode ierr;
+	const uint n_unknown = 3;
+
+	// create the snes for solving projection problems
+	ierr = SNESCreate(PETSC_COMM_SELF,&_snes);libmesh_assert(ierr==0);
+
+	// create the solution and residual norms
+	ierr = VecCreateSeq(PETSC_COMM_SELF, n_unknown, &_vec_x);libmesh_assert(ierr==0);
+	ierr = VecDuplicate(_vec_x,&_vec_r);libmesh_assert(ierr==0);
+
+	// create the matrix
+	ierr = MatCreateSeqDense(PETSC_COMM_SELF, 3, 3, NULL, &_mat_j);libmesh_assert(ierr==0);
+	{
+		int idx[20]; double ones[100];
+		for (uint i=0; i<n_unknown; i++) idx[i]=i;
+		for (uint i=0; i<n_unknown*n_unknown; i++) ones[i]=1;
+		ierr=MatSetValues(_mat_j, n_unknown, idx, n_unknown, idx, ones, INSERT_VALUES);libmesh_assert(ierr==0);
+	}
+	ierr = MatAssemblyBegin(_mat_j, MAT_FINAL_ASSEMBLY); libmesh_assert(ierr==0);
+	ierr = MatAssemblyEnd(_mat_j, MAT_FINAL_ASSEMBLY); libmesh_assert(ierr==0);
+
+	// set the snes residual function
+	ierr = SNESSetFunction(_snes,_vec_r,TestCaseBump::snes_residual, this);libmesh_assert(ierr==0);
+
+	// set the snes jacobian function (normal finite difference)
+	ierr = SNESSetJacobian(_snes,_mat_j,_mat_j,SNESComputeJacobianDefault, this);libmesh_assert(ierr==0);
+
+	// other snes options
+	KSP ksp;
+	PC pc;
+
+	ierr = SNESGetKSP(_snes,&ksp);libmesh_assert(ierr==0);
+	ierr = KSPGetPC(ksp,&pc);libmesh_assert(ierr==0);
+	ierr = KSPSetType(ksp, KSPPREONLY);libmesh_assert(ierr==0);
+	ierr = PCSetType(pc,PCLU);libmesh_assert(ierr==0);
+
+	// Strice tolerances
+	ierr = SNESSetTolerances(_snes,1e-16,1e-20,1e-20,100,1000);libmesh_assert(ierr==0);
+	ierr = SNESSetFromOptions(_snes);libmesh_assert(ierr==0);
+
+
+}
+
+TestCaseBump::~TestCaseBump()
+{
+	PetscErrorCode ierr;
+
+	// destroy all the petsc stuff
+	ierr = VecDestroy(&_vec_x);libmesh_assert(ierr==0);
+	ierr = VecDestroy(&_vec_r);libmesh_assert(ierr==0);
+	ierr = MatDestroy(&_mat_j);libmesh_assert(ierr==0);
+	ierr = SNESDestroy(&_snes);libmesh_assert(ierr==0);
+}
+
+PetscErrorCode TestCaseBump::snes_residual(SNES snes,Vec xvec,Vec f,void *ctx)
+{
+  PetscErrorCode    ierr;
+  const PetscScalar *xx;
+  PetscScalar       *ff;
+
+  // get pointer to data
+  ierr = VecGetArrayRead(xvec,&xx);libmesh_assert(ierr==0);
+  ierr = VecGetArray(f,&ff);libmesh_assert(ierr==0);
+
+  /* extract data */
+  const TestCaseBump *g = (TestCaseBump *) ctx;
+
+  // xs, ys and zs
+  const double xs = g->_xs;
+  const double ys = g->_ys;
+  const double zs = g->_zs;
+
+  // u, v and d
+  const double u = xx[0];
+  const double v = xx[1];
+  const double d = xx[2];
+
+  // r, h and c
+  const double r = g->_r;
+  const double h = g->_h;
+  const double c = g->_c;
+
+  // find n
+  const double denom_n = sqrt(c*c + sin(v)*sin(v) );
+  const double n_x = c * sin(v) / denom_n;
+  const double n_y = -sin(v) / denom_n;
+  const double n_z = c * cos(v) / denom_n;
+
+  // find x, y and z
+  const double x = u + r * sin(v);
+  const double y = c * u;
+  const double z = r * cos(v) - h;
+
+  // evaluate residuals
+  ff[0] = xs - x - d * n_x;
+  ff[1] = ys - y - d * n_y;
+  ff[2] = zs - z - d * n_z;
+
+  /* Restore vectors */
+  ierr = VecRestoreArrayRead(xvec,&xx);libmesh_assert(ierr==0);
+  ierr = VecRestoreArray(f,&ff);libmesh_assert(ierr==0);
+  return 0;
+}
+
+Point TestCaseBump::project_on_bump(const Point& p)
+{
+
+	PetscErrorCode ierr;
+
+	// set the xs,ys,zs to be used by snes
+	_xs = p(X); _ys=p(Y); _zs=p(Z);
+
+	// Initial guess for u, v and d
+	double *xm;
+    ierr  = VecGetArray(_vec_x,&xm);libmesh_assert(ierr==0);
+	xm[0]= _ys / _c;
+	xm[1]=  asin( (_xs - xm[0]) / _r );
+	xm[2]=  0;
+    ierr  = VecRestoreArray(_vec_x,&xm);libmesh_assert(ierr==0);
+
+    // solve the system to get u, v, d
+    ierr = SNESSolve(_snes,NULL,_vec_x);libmesh_assert(ierr==0);
+
+    // create the point and return it
+    const double *xr;
+    Point p_proj;
+    ierr = VecGetArrayRead(_vec_x,&xr);libmesh_assert(ierr==0);
+
+    const double u = xr[0];
+    const double v = xr[1];
+    const double d = xr[2];
+
+    p_proj(X) = u + _r * sin(v);
+    p_proj(Y) = _c * u;
+    p_proj(Z) = _r * cos(v) - _h;
+
+    ierr = VecRestoreArrayRead(_vec_x,&xr);libmesh_assert(ierr==0);
+
+    // check d to be consistent with the returned point
+    libmesh_assert( fabs( fabs(d) - (p_proj-p).size() ) < 1e-13 );
+
+    // return the point
+    return p_proj;
+}
+
+void TestCaseBump::project_on_bump_test()
+{
+	// Hard code some values for c,r and h
+	const double c = _c;
+	const double r = _r;
+	const double h = _h;
+	_c = 1;
+	_r = 1;
+	_h = 0.5;
+
+	// the exact solution in u and v
+	const double ue = 0.5;
+	const double ve = 0.7 * M_PI/3;
+	const double de = 0.25;
+
+	// exact solution in x and y
+	const double denom_n = sqrt(_c * _c + sin(ve) * sin(ve) );
+	const double n_x = _c * sin(ve) / denom_n;
+	const double n_y = -sin(ve) / denom_n;
+	const double n_z = _c * cos(ve) / denom_n;
+
+	const double xe = ue + _r * sin(ve);
+	const double ye = _c * ue;
+	const double ze = _r * cos(ve) - _h;
+
+	// point to be projected
+	Point p;
+	p(X) = xe + de*n_x;
+	p(Y) = ye + de*n_y;
+	p(Z) = ze + de*n_z;
+
+	// project the point
+	Point p_proj = project_on_bump(p);
+
+    // print the results
+	printf("Projection results: \n");
+	printf(" init_x: %10.8lf %10.8lf %10.8lf\n", p(X), p(Y), p(Z));
+	printf("exact_x: %10.8lf %10.8lf %10.8lf\n", xe, ye, ze);
+	printf("  num_x: %10.8lf %10.8lf %10.8lf\n", p_proj(X) , p_proj(Y) , p_proj(Z) );
+	printf("   err: %10e %10e %10e\n", p_proj(X)-xe , p_proj(Y)-ye , p_proj(Z)-ze );
+	printf("\n");
+
+	// Restore the values for r, c and h
+	_c = c;
+	_r = r;
+	_h = h;
+
+	// Exit after execution
+	//libmesh_assert_msg(0,"This function causes assertion and exit!!");
+}
+
+void TestCaseBump::boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q)
+{
 }
 
 

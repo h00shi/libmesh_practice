@@ -41,6 +41,10 @@
 #include "libmesh/petsc_macro.h"
 #include "libmesh/exact_solution.h"
 
+//Petsc stuff
+#include "petscsnes.h"
+#include "petscsys.h"
+
 // Bring in everything from the libMesh namespace
 using namespace libMesh;
 
@@ -175,6 +179,45 @@ public:
 	  // 3-> perpendicular to z
 	  // 4-> inner surface
 	  // 5-> outer surface
+	  // 6-> upper surface
+	  void boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q);
+};
+
+/**
+ * Extruded bump test case.
+ */
+class TestCaseBump: public TestCase
+{
+private:
+	// geometry parameters
+	double _r, _h, _c;
+
+	// petsc stuff for projecting
+	SNES _snes;
+	Vec _vec_x, _vec_r;
+	Mat _mat_j;
+
+	double _xs, _ys, _zs;
+
+
+public:
+
+	  // constructor
+	  TestCaseBump(Material &material, const double r, const double h, const double c);
+
+	  // destructor
+	  ~TestCaseBump();
+
+	  // residual for projection on bump
+	  static PetscErrorCode snes_residual(SNES snes,Vec xvec,Vec f,void *ctx);
+
+	  // project on the bump surface
+	  Point project_on_bump(const Point& p);
+
+	  // test the projection code
+	  void project_on_bump_test();
+
+	  // Boundary surfaces should be numbered like this:
 	  void boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q);
 };
 

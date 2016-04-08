@@ -41,6 +41,12 @@ driver_manufactured-$(METHOD): driver_manufactured.$(obj-suffix) linear_elastici
 	  $(libmesh_CXX) $(libmesh_CXXFLAGS) $^ -o $@ $(libmesh_LIBS) $(libmesh_LDFLAGS) $(EXTERNAL_FLAGS)
 	@rm -rf $^
 
+extruded_bump-$(METHOD): extruded_bump.$(obj-suffix)
+	@echo "Linking "$@"..."
+	@$(libmesh_LIBTOOL) --tag=CXX $(LIBTOOLFLAGS) --mode=link \
+	  $(libmesh_CXX) $(libmesh_CXXFLAGS) $^ -o $@ $(libmesh_LIBS) $(libmesh_LDFLAGS) $(EXTERNAL_FLAGS)
+	@rm -rf $^
+
 
 # Useful rules.
 dust:

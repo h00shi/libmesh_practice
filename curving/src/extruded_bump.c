@@ -1,20 +1,20 @@
 
 static char help[] = "Newton's method for a two-variable system, sequential.\n\n";
 
-/*T
-   Concepts: SNES^basic example
-T*/
-
-/*
-   Include "petscsnes.h" so that we can use SNES solvers.  Note that this
-   file automatically includes:
-     petscsys.h       - base PETSc routines   petscvec.h - vectors
-     petscmat.h - matrices
-     petscis.h     - index sets            petscksp.h - Krylov subspace methods
-     petscviewer.h - viewers               petscpc.h  - preconditioners
-     petscksp.h   - linear solvers
-*/
-#include <petscsnes.h>
+/**
+ * Here we have a surface with the parameterization:
+ * (x,y,z) = r(u,v)
+ * n(u,v) = r_u \times r_v / \| r_u \times r_v \|
+ *
+ * We wish to project a point xs, ys, zs into this surface, i.e.,
+ * solve for u, v and d such that:
+ * xs - x(u,v) - d n_x(u,v) = 0
+ * ys - y(u,v) - d n_y(u,v) = 0
+ * zs - z(u,v) - d n_z(u,v) = 0
+ *
+ * We will use PETSc's SNES framework.
+ */
+#include "petscsnes.h"
 #include <math.h>
 
 /*
@@ -29,14 +29,14 @@ struct Geometry
 	double h,c,r;
 
 	// The coordinates in the question
-	double xs,ys,zs;
-	double x, y, z;
-	double xe, ye, ze;
+	double xs,ys,zs;   //point to be projected
+	double x, y, z;    //numerical solution
+	double xe, ye, ze; //exact solution
 
 	// The generalized coordinates
-	double u0, v0, d0;
-	double u, v, d;
-	double ue, ve, de;
+	double u0, v0, d0; //initial guess
+	double u, v, d;    //numerical solution
+	double ue, ve, de; //exact solution
 	
 };
 typedef struct Geometry Geometry;
@@ -159,7 +159,6 @@ int main(int argc,char **argv)
 
   ierr = VecDestroy(&x);CHKERRQ(ierr); ierr = VecDestroy(&r);CHKERRQ(ierr);
   ierr = MatDestroy(&J);CHKERRQ(ierr); ierr = SNESDestroy(&snes);CHKERRQ(ierr);
-  //ierr = MatFDColoringDestroy(&fdcoloring);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return 0;
 }
@@ -244,8 +243,8 @@ PetscErrorCode SetUpGeometry(Geometry* g)
 	// set the point for which surface friend has to be found
 	// lets create a manufactured solution
 	g->ue = 0.5;
-	g->ve = 0.6 * M_PI/3;
-	g->de = 0.2;
+	g->ve = 0.7 * M_PI/3;
+	g->de = 0.25;
 		
 	const double denom_n = sqrt(g->c * g->c + sin(g->ve) * sin(g->ve) );
 	const double n_x = g->c * sin(g->ve) / denom_n;
@@ -288,9 +287,9 @@ PetscErrorCode CheckGeometry(Vec xvec, Geometry* g)
   g->d = xx[2];
 
   // set the new coordinates
-  g-> x = g->u + g->r * sin(g->v);
-  g-> y = g->c * g->u;
-  g-> z = g->r * cos(g->v) - g->h;
+  g->x = g->u + g->r * sin(g->v);
+  g->y = g->c * g->u;
+  g->z = g->r * cos(g->v) - g->h;
 
   // check the difference
   printf(" init_x: %10.8lf %10.8lf %10.8lf\n", g->xs, g->ys, g->zs);  

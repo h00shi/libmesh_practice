@@ -1,5 +1,7 @@
 #include "linear_elasticity.hxx"
 #include "libmesh/gmsh_io.h"
+#include "libmesh/vtk_io.h"
+
 
 /****************************************************************************
  *                       Petsc Configurations                               *
@@ -23,7 +25,7 @@ public:
     ierr = PCSetType (_petsc_linear_solver.pc(), const_cast<PCType>(PCBJACOBI));
     libmesh_assert(ierr == 0);
 
-    ierr = KSPSetTolerances(_petsc_linear_solver.ksp(), 1e-20, 1e-11, 1e30, 3000);
+    ierr = KSPSetTolerances(_petsc_linear_solver.ksp(), PETSC_DEFAULT , 1e-11, PETSC_DEFAULT , 3000);
     libmesh_assert(ierr == 0);
   }
 
@@ -49,12 +51,10 @@ int main (int argc, char** argv)
   Mesh mesh(init.comm(), dim);
 
   // Read the mesh
-  {
-	  GmshIO gmsh(mesh);
-	  gmsh.read("../mesh/sphere.msh");
-	  mesh.all_second_order(true);
-	  mesh.prepare_for_use();
-  }
+  GmshIO gmsh(mesh);
+  gmsh.read("../mesh/sphere.msh");
+  mesh.all_second_order(true);
+  mesh.prepare_for_use();
 
   // Print information about the mesh to the screen.
   mesh.print_info();
@@ -75,9 +75,11 @@ int main (int argc, char** argv)
   petsc_linear_solver->set_solver_configuration(petsc_solver_config);
 
   // Add three displacement variables, u and v, to the system
-  system.add_variable("u", THIRD, HIERARCHIC);
-  system.add_variable("v", THIRD, HIERARCHIC);
-  system.add_variable("w", THIRD, HIERARCHIC);
+  const Order order=SECOND;
+  const FEFamily fe_family=HIERARCHIC;
+  system.add_variable("u", order, fe_family);
+  system.add_variable("v", order, fe_family);
+  system.add_variable("w", order, fe_family);
 
   // add the assembler
   // Hard code material parameters for the sake of simplicity
@@ -91,6 +93,9 @@ int main (int argc, char** argv)
   Material material(lambda, mu);
   //TestCaseMMS test_case(material);
   TestCaseSphere test_case(material, 1, 2);
+  TestCaseBump test_case_bump(material, 1,1,1);
+  test_case_bump.project_on_bump_test();
+
   LinearElasticity le(equation_systems, material, test_case);
   system.attach_assemble_object(le);
 
@@ -114,6 +119,10 @@ int main (int argc, char** argv)
   std::set<std::string> system_names;
   system_names.insert("Elasticity");
   exo_io.write_equation_systems("displacement_and_stress.exo",equation_systems,&system_names);
+
+  //VTKIO vtk(mesh);
+  //vtk.write_equation_systems("disp.pvtu", equation_systems,&system_names);
+  gmsh.write_equation_systems("disp.msh", equation_systems,&system_names);
 
   // All done.
   return 0;
