@@ -1,7 +1,8 @@
 #include "linear_elasticity.hxx"
 #include "libmesh/gmsh_io.h"
 #include "libmesh/vtk_io.h"
-
+#include "libmesh/mesh_communication.h"
+#include "libmesh/parallel.h"
 
 /****************************************************************************
  *                       Petsc Configurations                               *
@@ -38,6 +39,9 @@ public:
 // Begin the main program.
 int main (int argc, char** argv)
 {
+  // Getpot
+  GetPot getpot(argc, argv);
+
   // Initialize libMesh and any dependent libraries
   LibMeshInit init (argc, argv);
 
@@ -52,9 +56,16 @@ int main (int argc, char** argv)
 
   // Read the mesh
   GmshIO gmsh(mesh);
-  gmsh.read("../mesh/sphere.msh");
-  mesh.all_second_order(true);
+  if(init.comm().rank() == 0)
+  {
+	  std::string mesh_name;
+	  mesh_name = getpot("mesh_name", "../mesh/simple_box_5.msh");
+	  gmsh.read(mesh_name);
+  }
+  MeshCommunication mc;
+  mc.broadcast(mesh);
   mesh.prepare_for_use();
+  mesh.all_second_order(true);
 
   // Print information about the mesh to the screen.
   mesh.print_info();
@@ -92,9 +103,9 @@ int main (int argc, char** argv)
 
   Material material(lambda, mu);
   //TestCaseMMS test_case(material);
-  TestCaseSphere test_case(material, 1, 2);
-  TestCaseBump test_case_bump(material, 1,1,1);
-  test_case_bump.project_on_bump_test();
+  //TestCaseSphere test_case(material, 1, 2);
+  TestCaseBump test_case(material, 1 /*r*/, M_PI/6. /*vmax*/, 4 /*c*/, 0 /*b*/, init.comm());
+  test_case.project_on_bump_test();
 
   LinearElasticity le(equation_systems, material, test_case);
   system.attach_assemble_object(le);

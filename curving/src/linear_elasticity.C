@@ -192,14 +192,21 @@ void TestCaseSphere::boundary_penalty(const Point& p, const uint id, const uint 
 
 }
 
-TestCaseBump::TestCaseBump(Material &material, const double r, const double h, const double c):
+TestCaseBump::TestCaseBump(Material &material, const double r, const double v_max, const double c, const double b, Parallel::Communicator& comm):
 			  TestCase(material, false, false),
 			  _r(r),
-			  _h(h),
-			  _c(c)
+			  _h(r*cos(v_max)),
+			  _c(c),
+			  _l(5 * r * sin(v_max)),
+			  _b(b),
+			  _last_projectee((Point *) NULL),
+			  _comm(comm)
 {
 	PetscErrorCode ierr;
 	const uint n_unknown = 3;
+
+	// assert that b is zero
+	libmesh_assert(b==0);
 
 	// create the snes for solving projection problems
 	ierr = SNESCreate(PETSC_COMM_SELF,&_snes);libmesh_assert(ierr==0);
@@ -252,7 +259,7 @@ TestCaseBump::~TestCaseBump()
 	ierr = SNESDestroy(&_snes);libmesh_assert(ierr==0);
 }
 
-PetscErrorCode TestCaseBump::snes_residual(SNES snes,Vec xvec,Vec f,void *ctx)
+PetscErrorCode TestCaseBump::snes_residual(SNES,Vec xvec,Vec f,void *ctx)
 {
   PetscErrorCode    ierr;
   const PetscScalar *xx;
@@ -275,26 +282,16 @@ PetscErrorCode TestCaseBump::snes_residual(SNES snes,Vec xvec,Vec f,void *ctx)
   const double v = xx[1];
   const double d = xx[2];
 
-  // r, h and c
-  const double r = g->_r;
-  const double h = g->_h;
-  const double c = g->_c;
-
   // find n
-  const double denom_n = sqrt(c*c + sin(v)*sin(v) );
-  const double n_x = c * sin(v) / denom_n;
-  const double n_y = -sin(v) / denom_n;
-  const double n_z = c * cos(v) / denom_n;
+  Point pn = g->normal(u,v);
 
   // find x, y and z
-  const double x = u + r * sin(v);
-  const double y = c * u;
-  const double z = r * cos(v) - h;
+  Point pxyz = g->xyz(u,v);
 
   // evaluate residuals
-  ff[0] = xs - x - d * n_x;
-  ff[1] = ys - y - d * n_y;
-  ff[2] = zs - z - d * n_z;
+  ff[0] = xs - pxyz(X) - d * pn(X);
+  ff[1] = ys - pxyz(Y) - d * pn(Y);
+  ff[2] = zs - pxyz(Z) - d * pn(Z);
 
   /* Restore vectors */
   ierr = VecRestoreArrayRead(xvec,&xx);libmesh_assert(ierr==0);
@@ -307,72 +304,73 @@ Point TestCaseBump::project_on_bump(const Point& p)
 
 	PetscErrorCode ierr;
 
-	// set the xs,ys,zs to be used by snes
-	_xs = p(X); _ys=p(Y); _zs=p(Z);
+	// check if we just projected this guy
+	if (false && (&p == _last_projectee) )
+	{
+		//if(!_comm.rank()) printf("used_previous \n");
+		return _last_projection;
+	}
+	else
+	{
 
-	// Initial guess for u, v and d
-	double *xm;
-    ierr  = VecGetArray(_vec_x,&xm);libmesh_assert(ierr==0);
-	xm[0]= _ys / _c;
-	xm[1]=  asin( (_xs - xm[0]) / _r );
-	xm[2]=  0;
-    ierr  = VecRestoreArray(_vec_x,&xm);libmesh_assert(ierr==0);
+		// set the xs,ys,zs to be used by snes
+		_xs = p(X); _ys=p(Y); _zs=p(Z);
 
-    // solve the system to get u, v, d
-    ierr = SNESSolve(_snes,NULL,_vec_x);libmesh_assert(ierr==0);
+		// Initial guess for u, v and d
+		double *xm;
+		ierr  = VecGetArray(_vec_x,&xm);libmesh_assert(ierr==0);
+		u0v0(p,xm[0],xm[1]);
+		xm[2]=  0;
+		ierr  = VecRestoreArray(_vec_x,&xm);libmesh_assert(ierr==0);
 
-    // create the point and return it
-    const double *xr;
-    Point p_proj;
-    ierr = VecGetArrayRead(_vec_x,&xr);libmesh_assert(ierr==0);
+		// solve the system to get u, v, d
+		ierr = SNESSolve(_snes,NULL,_vec_x);libmesh_assert(ierr==0);
 
-    const double u = xr[0];
-    const double v = xr[1];
-    const double d = xr[2];
+		// create the point and return it
+		const double *xr;
+		Point p_proj;
+		ierr = VecGetArrayRead(_vec_x,&xr);libmesh_assert(ierr==0);
 
-    p_proj(X) = u + _r * sin(v);
-    p_proj(Y) = _c * u;
-    p_proj(Z) = _r * cos(v) - _h;
+		const double u = xr[0];
+		const double v = xr[1];
+		const double d = xr[2];
 
-    ierr = VecRestoreArrayRead(_vec_x,&xr);libmesh_assert(ierr==0);
+		p_proj = xyz(u,v);
 
-    // check d to be consistent with the returned point
-    libmesh_assert( fabs( fabs(d) - (p_proj-p).size() ) < 1e-13 );
+		ierr = VecRestoreArrayRead(_vec_x,&xr);libmesh_assert(ierr==0);
 
-    // return the point
-    return p_proj;
+		// check d to be consistent with the returned point
+		libmesh_assert( fabs( fabs(d) - (p_proj-p).size() ) < 1e-12 );
+
+		// save the projection
+		_last_projectee = &p;
+		_last_projection = p_proj;
+
+		// return the projection
+		return p_proj;
+	}
 }
 
 void TestCaseBump::project_on_bump_test()
 {
-	// Hard code some values for c,r and h
-	const double c = _c;
-	const double r = _r;
-	const double h = _h;
-	_c = 1;
-	_r = 1;
-	_h = 0.5;
+
+	// do this only for rank zero
+	if (_comm.rank() > 0 ) return;
 
 	// the exact solution in u and v
-	const double ue = 0.5;
-	const double ve = 0.7 * M_PI/3;
-	const double de = 0.25;
+	const double ue = 0.6;
+	const double ve = 0.7 * M_PI/6;
+	const double de = 0.15;
 
 	// exact solution in x and y
-	const double denom_n = sqrt(_c * _c + sin(ve) * sin(ve) );
-	const double n_x = _c * sin(ve) / denom_n;
-	const double n_y = -sin(ve) / denom_n;
-	const double n_z = _c * cos(ve) / denom_n;
-
-	const double xe = ue + _r * sin(ve);
-	const double ye = _c * ue;
-	const double ze = _r * cos(ve) - _h;
+	Point ne = normal(ue, ve);
+	Point xe = xyz(ue, ve);
 
 	// point to be projected
 	Point p;
-	p(X) = xe + de*n_x;
-	p(Y) = ye + de*n_y;
-	p(Z) = ze + de*n_z;
+	p(X) = xe(X) + de*ne(X);
+	p(Y) = xe(Y) + de*ne(Y);
+	p(Z) = xe(Z) + de*ne(Z);
 
 	// project the point
 	Point p_proj = project_on_bump(p);
@@ -380,24 +378,101 @@ void TestCaseBump::project_on_bump_test()
     // print the results
 	printf("Projection results: \n");
 	printf(" init_x: %10.8lf %10.8lf %10.8lf\n", p(X), p(Y), p(Z));
-	printf("exact_x: %10.8lf %10.8lf %10.8lf\n", xe, ye, ze);
+	printf("exact_x: %10.8lf %10.8lf %10.8lf\n", xe(X), xe(Y), xe(Z));
 	printf("  num_x: %10.8lf %10.8lf %10.8lf\n", p_proj(X) , p_proj(Y) , p_proj(Z) );
-	printf("   err: %10e %10e %10e\n", p_proj(X)-xe , p_proj(Y)-ye , p_proj(Z)-ze );
+	printf("   err: %10e %10e %10e\n", p_proj(X)-xe(X) , p_proj(Y)-xe(Y) , p_proj(Z)-xe(Z) );
 	printf("\n");
-
-	// Restore the values for r, c and h
-	_c = c;
-	_r = r;
-	_h = h;
 
 	// Exit after execution
 	//libmesh_assert_msg(0,"This function causes assertion and exit!!");
 }
 
+
 void TestCaseBump::boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q)
 {
-}
+	const double penalty = 1.e10;
 
+	switch(id)
+	{
+	// Perpendicular to x
+	case 1:
+	{
+		// No U displacement
+		if (n_unknown == U)
+		{
+			q = 0; // let u move
+			t = 0;
+		}
+		// Others are free to move
+		else
+		{
+			q = t = 0;
+		}
+		break;
+	}
+
+	// Perpendicular to y
+	case 2:
+	{
+		// No V displacement
+		if (n_unknown == V)
+		{
+			q = penalty;
+			t = 0;
+		}
+		// Others are free to move
+		else
+		{
+			q = t = 0;
+		}
+		break;
+	}
+
+	// Perpendicular to z
+	case 3:
+	{
+		// No W displacement
+		if (n_unknown == W)
+		{
+			q = penalty;
+			t = 0;
+		}
+		// Others are free to move
+		else
+		{
+			q = t = 0;
+		}
+		break;
+	}
+
+	// The surface that must be curved
+	case 4:
+	{
+		// Find the new coordinates
+		Point p_new = project_on_bump(p);
+
+		//printf("%.8lf \n", p_new(Z) - p(Z));
+
+		// Force the displacement
+		q = penalty;
+
+		switch(n_unknown)
+		{
+		case U: t = (p_new(X) - p(X)) * penalty; break;
+		case V: t = (p_new(Y) - p(Y)) * penalty; break;
+		case W: t = (p_new(Z) - p(Z)) * penalty; break;
+		}
+
+		break;
+	}
+
+	default:
+		libmesh_assert(0);
+
+	//end of case
+	}
+
+}
 
 /****************************************************************************
  *                             Assembler                                    *

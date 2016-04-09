@@ -190,7 +190,7 @@ class TestCaseBump: public TestCase
 {
 private:
 	// geometry parameters
-	double _r, _h, _c;
+	double _r, _h, _c, _l, _b;
 
 	// petsc stuff for projecting
 	SNES _snes;
@@ -199,11 +199,17 @@ private:
 
 	double _xs, _ys, _zs;
 
+	// avoid projecting one point twice
+	const Point *_last_projectee;
+	Point _last_projection;
+
+	// parallel stuff
+	Parallel::Communicator& _comm;
 
 public:
 
 	  // constructor
-	  TestCaseBump(Material &material, const double r, const double h, const double c);
+	  TestCaseBump(Material &material, const double r, const double v_max, const double c, const double b, Parallel::Communicator& comm);
 
 	  // destructor
 	  ~TestCaseBump();
@@ -211,6 +217,33 @@ public:
 	  // residual for projection on bump
 	  static PetscErrorCode snes_residual(SNES snes,Vec xvec,Vec f,void *ctx);
 
+	  // x, y and z as functions of u and v
+	  Point xyz(const double u, const double v) const
+	  {
+		  Point p;
+		  p(X) = u +  _l/2. + _r * sin(v);
+		  p(Y) = _c * u;
+		  p(Z) = _r * cos(v) - _h;
+
+		  return p;
+	  }
+	  // n as function of u and v
+	  Point normal(const double , const double v) const
+	  {
+		  Point n;
+		  const double denom_n = sqrt( _c * _c + sin(v) * sin(v) );
+		  n(X) = _c * sin(v) / denom_n;
+		  n(Y) = -sin(v) / denom_n;
+		  n(Z) = _c * cos(v) / denom_n;
+
+		  return n;
+	  }
+	  // Initial Guess
+	  void u0v0(const Point &p, double& v, double& u) const
+	  {
+			u= p(Y) / _c;
+			v=  asin( (p(X) - _l/2 - u) / _r );
+	  }
 	  // project on the bump surface
 	  Point project_on_bump(const Point& p);
 
@@ -218,6 +251,10 @@ public:
 	  void project_on_bump_test();
 
 	  // Boundary surfaces should be numbered like this:
+	  // 1 -> perpendicular to x
+	  // 2 -> perpendicular to y
+	  // 3 -> perpendicular to z
+	  // 4 -> to be curved
 	  void boundary_penalty(const Point& p, const uint id, const uint n_unknown, double &t, double &q);
 };
 
