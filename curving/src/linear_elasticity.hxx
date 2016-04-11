@@ -214,39 +214,59 @@ public:
 	  // destructor
 	  ~TestCaseBump();
 
-	  // residual for projection on bump
-	  static PetscErrorCode snes_residual(SNES snes,Vec xvec,Vec f,void *ctx);
-
 	  // x, y and z as functions of u and v
 	  Point xyz(const double u, const double v) const
 	  {
 		  Point p;
-		  p(X) = u +  _l/2. + _r * sin(v);
+
+		  const double r = _r - _b * u;
+		  const double h = _h * (1 - _b / _r * u);
+		  p(X) = u +  _l/2. + r * sin(v);
 		  p(Y) = _c * u;
-		  p(Z) = _r * cos(v) - _h;
+		  p(Z) = r * cos(v) - h;
 
 		  return p;
 	  }
 	  // n as function of u and v
-	  Point normal(const double , const double v) const
+	  Point normal(const double, const double v) const
 	  {
 		  Point n;
-		  const double denom_n = sqrt( _c * _c + sin(v) * sin(v) );
-		  n(X) = _c * sin(v) / denom_n;
-		  n(Y) = -sin(v) / denom_n;
-		  n(Z) = _c * cos(v) / denom_n;
+
+		  const double rurv_x = _c*sin(v);
+		  const double rurv_y = _b*(1-_h/_r*cos(v))-sin(v);
+		  const double rurv_z = _c*cos(v);
+		  const double denom = sqrt( _c*_c + rurv_y*rurv_y);
+
+		  n(X) = rurv_x / denom;
+		  n(Y) = rurv_y / denom;
+		  n(Z) = rurv_z / denom;
 
 		  return n;
 	  }
 	  // Initial Guess
-	  void u0v0(const Point &p, double& v, double& u) const
+	  void u0v0(const Point &p, double& u, double& v) const
 	  {
-			u= p(Y) / _c;
-			v=  asin( (p(X) - _l/2 - u) / _r );
+
+		  u= p(Y) / _c;
+
+		  const double r = _r - _b * u;
+
+		  const double sin_candidate  = (p(X) - _l/2 - u) / r;
+		  if(abs(sin_candidate) < 1)
+		  {
+			  v=  asin(sin_candidate);
+		  }
+		  else
+		  {
+			  const double v_max = acos(_h/_r);
+			  v = v_max * .9;
+		  }
 	  }
+
+	  // residual for projection on bump
+	  static PetscErrorCode snes_residual(SNES snes,Vec xvec,Vec f,void *ctx);
 	  // project on the bump surface
 	  Point project_on_bump(const Point& p);
-
 	  // test the projection code
 	  void project_on_bump_test();
 

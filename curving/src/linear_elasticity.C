@@ -205,9 +205,6 @@ TestCaseBump::TestCaseBump(Material &material, const double r, const double v_ma
 	PetscErrorCode ierr;
 	const uint n_unknown = 3;
 
-	// assert that b is zero
-	libmesh_assert(b==0);
-
 	// create the snes for solving projection problems
 	ierr = SNESCreate(PETSC_COMM_SELF,&_snes);libmesh_assert(ierr==0);
 
@@ -305,7 +302,7 @@ Point TestCaseBump::project_on_bump(const Point& p)
 	PetscErrorCode ierr;
 
 	// check if we just projected this guy
-	if (false && (&p == _last_projectee) )
+	if (&p == _last_projectee)
 	{
 		//if(!_comm.rank()) printf("used_previous \n");
 		return _last_projection;
@@ -358,9 +355,9 @@ void TestCaseBump::project_on_bump_test()
 	if (_comm.rank() > 0 ) return;
 
 	// the exact solution in u and v
-	const double ue = 0.6;
+	const double ue = 0.3 * _l/2./_c;
 	const double ve = 0.7 * M_PI/6;
-	const double de = 0.15;
+	const double de = 0.1;
 
 	// exact solution in x and y
 	Point ne = normal(ue, ve);
@@ -371,6 +368,11 @@ void TestCaseBump::project_on_bump_test()
 	p(X) = xe(X) + de*ne(X);
 	p(Y) = xe(Y) + de*ne(Y);
 	p(Z) = xe(Z) + de*ne(Z);
+
+	// find the initial guess
+	double u0, v0;
+	u0v0(p,u0,v0);
+	printf("Initial guess: %10.8lf %10.8lf \n", u0, v0);
 
 	// project the point
 	Point p_proj = project_on_bump(p);
@@ -451,6 +453,8 @@ void TestCaseBump::boundary_penalty(const Point& p, const uint id, const uint n_
 		// Find the new coordinates
 		Point p_new = project_on_bump(p);
 
+		// For debugging:
+		// check correct convergence
 		//printf("%.8lf \n", p_new(Z) - p(Z));
 
 		// Force the displacement

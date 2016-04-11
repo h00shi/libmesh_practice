@@ -26,7 +26,7 @@ public:
     ierr = PCSetType (_petsc_linear_solver.pc(), const_cast<PCType>(PCBJACOBI));
     libmesh_assert(ierr == 0);
 
-    ierr = KSPSetTolerances(_petsc_linear_solver.ksp(), PETSC_DEFAULT , 1e-11, PETSC_DEFAULT , 3000);
+    ierr = KSPSetTolerances(_petsc_linear_solver.ksp(), PETSC_DEFAULT , 1e-11, 1e30 , 3000);
     libmesh_assert(ierr == 0);
   }
 
@@ -86,7 +86,7 @@ int main (int argc, char** argv)
   petsc_linear_solver->set_solver_configuration(petsc_solver_config);
 
   // Add three displacement variables, u and v, to the system
-  const Order order=SECOND;
+  const Order order=THIRD;
   const FEFamily fe_family=HIERARCHIC;
   system.add_variable("u", order, fe_family);
   system.add_variable("v", order, fe_family);
@@ -104,7 +104,8 @@ int main (int argc, char** argv)
   Material material(lambda, mu);
   //TestCaseMMS test_case(material);
   //TestCaseSphere test_case(material, 1, 2);
-  TestCaseBump test_case(material, 1 /*r*/, M_PI/6. /*vmax*/, 4 /*c*/, 0 /*b*/, init.comm());
+  const double b = getpot("b", 0);
+  TestCaseBump test_case(material, 1 /*r*/, M_PI/6. /*vmax*/, 4 /*c*/, b /*b*/, init.comm());
   test_case.project_on_bump_test();
 
   LinearElasticity le(equation_systems, material, test_case);
