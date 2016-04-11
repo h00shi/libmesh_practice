@@ -7,7 +7,7 @@ h0 = r0 * Cos(v_max);
 l = 5 * r0 * Sin(v_max);
 w = l/2;
 g = l/3;
-b= 0;
+b= 2;
 c= 4;
 
 /****************************************************************************
@@ -26,7 +26,7 @@ u_front= w/c;
 ux_front= l/2 + w/c;
 uy_front= w;
 r_front= r0 - b * w / c;
-h_front= h0 - b * w / c;
+h_front= h0 - h0/r0*b * w / c;
 p_front= Sqrt(r_front*r_front - h_front * h_front);
 
 
@@ -35,9 +35,9 @@ p_front= Sqrt(r_front*r_front - h_front * h_front);
  ****************************************************************************/
 cl = 1e-1;
 
-//nx1 = 8;
+nx1 = 8;
 progx1 = 1;
-nx2 = nx1 / (l/2 - p_front) * 2 * p_front;
+nx2 = nx1 / (l/2 - p_back) * 2 * p_back;
 progx2 = 1;
 nx3 = nx1 / 1.5;
 progx3 = 1;
