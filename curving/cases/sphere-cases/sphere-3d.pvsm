@@ -3552,7 +3552,7 @@
       <Property name="EdgeColor" id="8164.EdgeColor" number_of_elements="3">
         <Element index="0" value="0"/>
         <Element index="1" value="0"/>
-        <Element index="2" value="0.5"/>
+        <Element index="2" value="0"/>
         <Domain name="range" id="8164.EdgeColor.range"/>
       </Property>
       <Property name="ExtractedBlockIndex" id="8164.ExtractedBlockIndex" number_of_elements="1">
@@ -6578,9 +6578,9 @@
         <Domain name="range" id="7507.BackLightWarmth.range"/>
       </Property>
       <Property name="Background" id="7507.Background" number_of_elements="3">
-        <Element index="0" value="0.32"/>
-        <Element index="1" value="0.34"/>
-        <Element index="2" value="0.43"/>
+        <Element index="0" value="1"/>
+        <Element index="1" value="1"/>
+        <Element index="2" value="1"/>
         <Domain name="range" id="7507.Background.range"/>
       </Property>
       <Property name="Background2" id="7507.Background2" number_of_elements="3">
@@ -7030,10 +7030,8 @@
     </ProxyCollection>
     <CustomProxyDefinitions/>
     <Links>
-      <GlobalPropertyLink global_name="BackgroundColor" proxy="7507" property="Background"/>
       <GlobalPropertyLink global_name="EdgeColor" proxy="7730" property="EdgeColor"/>
       <GlobalPropertyLink global_name="EdgeColor" proxy="8051" property="EdgeColor"/>
-      <GlobalPropertyLink global_name="EdgeColor" proxy="8164" property="EdgeColor"/>
       <GlobalPropertyLink global_name="ForegroundColor" proxy="7239" property="GridColor"/>
       <GlobalPropertyLink global_name="ForegroundColor" proxy="7507" property="OrientationAxesOutlineColor"/>
       <GlobalPropertyLink global_name="ForegroundColor" proxy="7730" property="AmbientColor"/>
