@@ -1,7 +1,10 @@
 // Inputs
 ratio=6;
-n_r = 60;
+//n_r = 60;
 n_angle=n_r/ratio;
+If (n_angle < 3)
+n_angle = 3;
+EndIf
 r_in = 1;
 r_out = 2;
 stet=0.86602540378;

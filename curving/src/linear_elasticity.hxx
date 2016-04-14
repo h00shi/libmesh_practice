@@ -10,6 +10,7 @@
 #include <iostream>
 #include <algorithm>
 #include <math.h>
+#include <fstream>
 
 // libMesh includes
 #include "libmesh/libmesh_config.h"
@@ -400,7 +401,7 @@ public:
   /**
    * Find the errors if we have a manufactured solution.
    */
-  void post_process();
+  void post_process(std::ostream &);
 
 
   /**

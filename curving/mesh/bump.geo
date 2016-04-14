@@ -35,22 +35,30 @@ p_front= Sqrt(r_front*r_front - h_front * h_front);
  ****************************************************************************/
 cl = 1e-1;
 
-nx1 = 8;
+//nx1 = 8;
 progx1 = 1;
+
 nx2 = nx1 / (l/2 - p_back) * 2 * p_back;
+If (nx2 < 3)
+nx2 = 3;
+EndIf
 progx2 = 1;
+
 nx3 = nx1 / 1.5;
 progx3 = 1;
-
 If (nx3 < 3)
 nx3 = 3;
 EndIf
 
-ny = 5;
-//ny = nx1;
+ny = nx1/2 + 2;
+If (ny > 8)
+ny = 8;
+EndIf
 
-nz = 15;
-//nz = nx1;
+nz = nx1*3;
+If (nz > 20)
+nz = 20;
+EndIf
 progz = 1.4;
 
 Printf("%.0f %.0f %.0f %.0f %.0f", nx1, nx2, nx3, ny, nz);

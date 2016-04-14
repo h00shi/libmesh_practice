@@ -1,6 +1,7 @@
 #include "linear_elasticity.hxx"
 
 #include "mpi.h"
+#include <iomanip>
 
 
 /****************************************************************************
@@ -238,9 +239,11 @@ TestCaseBump::TestCaseBump(Material &material, const double r, const double v_ma
 	ierr = KSPSetType(ksp, KSPPREONLY);libmesh_assert(ierr==0);
 	ierr = PCSetType(pc,PCLU);libmesh_assert(ierr==0);
 
-	// Strice tolerances
+	// tolerances
 	ierr = SNESSetTolerances(_snes,1e-16,1e-20,1e-20,100,1000);libmesh_assert(ierr==0);
-	ierr = SNESSetFromOptions(_snes);libmesh_assert(ierr==0);
+
+	// do not set from options - when I say gmres I mean the global solver not this!!!!
+	// ierr = SNESSetFromOptions(_snes);libmesh_assert(ierr==0);
 
 
 }
@@ -482,8 +485,13 @@ void TestCaseBump::boundary_penalty(const Point& p, const uint id, const uint n_
  *                             Assembler                                    *
  ****************************************************************************/
 
-void LinearElasticity::post_process()
+void LinearElasticity::post_process(std::ostream& outstream)
 {
+
+	std::ios::fmtflags old_settings = outstream.flags();
+	outstream.precision(10);
+	outstream.setf(std::ios::scientific, std::ios::floatfield);
+
 	// find the errors
 	if(_test_case.has_exact_solution())
 	{
@@ -501,9 +509,40 @@ void LinearElasticity::post_process()
 		esol.compute_error("Elasticity", "v");
 		esol.compute_error("Elasticity", "w");
 
-		std::cout << esol.l2_error("Elasticity", "u") << " " <<esol.l2_error("Elasticity", "v") << " " << esol.l2_error("Elasticity", "w") << std::endl;
-		std::cout << esol.h1_error("Elasticity", "u") << " " <<esol.h1_error("Elasticity", "v") << " " << esol.h1_error("Elasticity", "w") << std::endl;
+		if (es.comm().rank() == 0)
+		{
+			outstream << esol.l2_error("Elasticity", "u") << " " <<esol.l2_error("Elasticity", "v") << " " << esol.l2_error("Elasticity", "w") << std::endl;
+			outstream << esol.h1_error("Elasticity", "u") << " " <<esol.h1_error("Elasticity", "v") << " " << esol.h1_error("Elasticity", "w") << std::endl;
+		}
 	}
+	// print the convergence history
+	else
+	{
+		// get the object to the solver
+		LinearImplicitSystem& system = es.get_system<LinearImplicitSystem>("Elasticity");
+
+		PetscLinearSolver<Number>* petsc_linear_solver =
+		    libmesh_cast_ptr<PetscLinearSolver<Number>*>(system.get_linear_solver());
+		libmesh_assert(petsc_linear_solver);
+
+		// get the convergence history
+		std::vector<Real> history;
+		petsc_linear_solver->get_residual_history(history);
+
+		// print the histroy
+		if (es.comm().rank() == 0)
+		{
+			for (uint i = 0 ; i < history.size() ; i++)
+			{
+				outstream << std::setw(10) << i+1  << " "
+						<< std::setw(20) << history[i] << std::endl;
+			}
+		}
+
+	}
+
+	// restore flags
+	outstream.flags(old_settings);
 }
 
 

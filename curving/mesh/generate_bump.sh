@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ID="0 1 2 3"
-NLAYER=(8 16 32 64)
+NLAYER=(3 5 9 17)
 
 for ii in $ID
 do
