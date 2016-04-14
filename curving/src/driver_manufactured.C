@@ -147,17 +147,28 @@ int main (int argc, char** argv)
   std::string out_name = getpot("out_name", "displacement_and_stress");
   std::stringstream string_stream;
 
-  // post process
-  string_stream.str("");
-  string_stream << out_name << ".pp";
+  /*
+   *   post process
+   */
 
+  // open the file
   std::ofstream out_stream;
-  out_stream.open(string_stream.str().c_str(), std::ios::out);
-  libmesh_assert(out_stream.good());
+  if (init.comm().rank() == 0)
+  {
+	  string_stream.str("");
+	  string_stream << out_name << ".pp";
+	  out_stream.open(string_stream.str().c_str(), std::ios::out);
+	  libmesh_assert(out_stream.good());
+  }
 
+  // post process and print in file
   le.post_process(out_stream);
 
-  out_stream.close();
+  // close the file
+  if (init.comm().rank() == 0)
+  {
+	  out_stream.close();
+  }
 
   // Plot the solution
   // Use single precision in this case (reduces the size of the exodus file)

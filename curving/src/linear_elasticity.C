@@ -488,9 +488,15 @@ void TestCaseBump::boundary_penalty(const Point& p, const uint id, const uint n_
 void LinearElasticity::post_process(std::ostream& outstream)
 {
 
-	std::ios::fmtflags old_settings = outstream.flags();
-	outstream.precision(10);
-	outstream.setf(std::ios::scientific, std::ios::floatfield);
+
+	// save old setting
+	std::ios::fmtflags old_settings;
+	if (es.comm().rank() == 0)
+	{
+		old_settings = outstream.flags();
+		outstream.precision(10);
+		outstream.setf(std::ios::scientific, std::ios::floatfield);
+	}
 
 	// find the errors
 	if(_test_case.has_exact_solution())
@@ -542,7 +548,8 @@ void LinearElasticity::post_process(std::ostream& outstream)
 	}
 
 	// restore flags
-	outstream.flags(old_settings);
+	if (es.comm().rank() == 0)
+		outstream.flags(old_settings);
 }
 
 
