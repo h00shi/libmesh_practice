@@ -1,6 +1,7 @@
 #include "linear_elasticity.hxx"
 
 #include "mpi.h"
+#include <iomanip>
 
 
 /****************************************************************************
@@ -205,9 +206,6 @@ TestCaseBump::TestCaseBump(Material &material, const double r, const double v_ma
 	PetscErrorCode ierr;
 	const uint n_unknown = 3;
 
-	// assert that b is zero
-	libmesh_assert(b==0);
-
 	// create the snes for solving projection problems
 	ierr = SNESCreate(PETSC_COMM_SELF,&_snes);libmesh_assert(ierr==0);
 
@@ -241,9 +239,11 @@ TestCaseBump::TestCaseBump(Material &material, const double r, const double v_ma
 	ierr = KSPSetType(ksp, KSPPREONLY);libmesh_assert(ierr==0);
 	ierr = PCSetType(pc,PCLU);libmesh_assert(ierr==0);
 
-	// Strice tolerances
+	// tolerances
 	ierr = SNESSetTolerances(_snes,1e-16,1e-20,1e-20,100,1000);libmesh_assert(ierr==0);
-	ierr = SNESSetFromOptions(_snes);libmesh_assert(ierr==0);
+
+	// do not set from options - when I say gmres I mean the global solver not this!!!!
+	// ierr = SNESSetFromOptions(_snes);libmesh_assert(ierr==0);
 
 
 }
@@ -305,7 +305,7 @@ Point TestCaseBump::project_on_bump(const Point& p)
 	PetscErrorCode ierr;
 
 	// check if we just projected this guy
-	if (false && (&p == _last_projectee) )
+	if (&p == _last_projectee)
 	{
 		//if(!_comm.rank()) printf("used_previous \n");
 		return _last_projection;
@@ -358,9 +358,9 @@ void TestCaseBump::project_on_bump_test()
 	if (_comm.rank() > 0 ) return;
 
 	// the exact solution in u and v
-	const double ue = 0.6;
+	const double ue = 0.3 * _l/2./_c;
 	const double ve = 0.7 * M_PI/6;
-	const double de = 0.15;
+	const double de = 0.1;
 
 	// exact solution in x and y
 	Point ne = normal(ue, ve);
@@ -371,6 +371,11 @@ void TestCaseBump::project_on_bump_test()
 	p(X) = xe(X) + de*ne(X);
 	p(Y) = xe(Y) + de*ne(Y);
 	p(Z) = xe(Z) + de*ne(Z);
+
+	// find the initial guess
+	double u0, v0;
+	u0v0(p,u0,v0);
+	printf("Initial guess: %10.8lf %10.8lf \n", u0, v0);
 
 	// project the point
 	Point p_proj = project_on_bump(p);
@@ -451,6 +456,8 @@ void TestCaseBump::boundary_penalty(const Point& p, const uint id, const uint n_
 		// Find the new coordinates
 		Point p_new = project_on_bump(p);
 
+		// For debugging:
+		// check correct convergence
 		//printf("%.8lf \n", p_new(Z) - p(Z));
 
 		// Force the displacement
@@ -478,8 +485,19 @@ void TestCaseBump::boundary_penalty(const Point& p, const uint id, const uint n_
  *                             Assembler                                    *
  ****************************************************************************/
 
-void LinearElasticity::post_process()
+void LinearElasticity::post_process(std::ostream& outstream)
 {
+
+
+	// save old setting
+	std::ios::fmtflags old_settings;
+	if (es.comm().rank() == 0)
+	{
+		old_settings = outstream.flags();
+		outstream.precision(10);
+		outstream.setf(std::ios::scientific, std::ios::floatfield);
+	}
+
 	// find the errors
 	if(_test_case.has_exact_solution())
 	{
@@ -497,9 +515,41 @@ void LinearElasticity::post_process()
 		esol.compute_error("Elasticity", "v");
 		esol.compute_error("Elasticity", "w");
 
-		std::cout << esol.l2_error("Elasticity", "u") << " " <<esol.l2_error("Elasticity", "v") << " " << esol.l2_error("Elasticity", "w") << std::endl;
-		std::cout << esol.h1_error("Elasticity", "u") << " " <<esol.h1_error("Elasticity", "v") << " " << esol.h1_error("Elasticity", "w") << std::endl;
+		if (es.comm().rank() == 0)
+		{
+			outstream << esol.l2_error("Elasticity", "u") << " " <<esol.l2_error("Elasticity", "v") << " " << esol.l2_error("Elasticity", "w") << std::endl;
+			outstream << esol.h1_error("Elasticity", "u") << " " <<esol.h1_error("Elasticity", "v") << " " << esol.h1_error("Elasticity", "w") << std::endl;
+		}
 	}
+	// print the convergence history
+	else
+	{
+		// get the object to the solver
+		LinearImplicitSystem& system = es.get_system<LinearImplicitSystem>("Elasticity");
+
+		PetscLinearSolver<Number>* petsc_linear_solver =
+		    libmesh_cast_ptr<PetscLinearSolver<Number>*>(system.get_linear_solver());
+		libmesh_assert(petsc_linear_solver);
+
+		// get the convergence history
+		std::vector<Real> history;
+		petsc_linear_solver->get_residual_history(history);
+
+		// print the histroy
+		if (es.comm().rank() == 0)
+		{
+			for (uint i = 0 ; i < history.size() ; i++)
+			{
+				outstream << std::setw(10) << i+1  << " "
+						<< std::setw(20) << history[i] << std::endl;
+			}
+		}
+
+	}
+
+	// restore flags
+	if (es.comm().rank() == 0)
+		outstream.flags(old_settings);
 }
 
 

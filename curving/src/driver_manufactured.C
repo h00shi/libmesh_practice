@@ -3,6 +3,7 @@
 #include "libmesh/vtk_io.h"
 #include "libmesh/mesh_communication.h"
 #include "libmesh/parallel.h"
+#include "libmesh/metis_partitioner.h"
 
 /****************************************************************************
  *                       Petsc Configurations                               *
@@ -26,8 +27,17 @@ public:
     ierr = PCSetType (_petsc_linear_solver.pc(), const_cast<PCType>(PCBJACOBI));
     libmesh_assert(ierr == 0);
 
-    ierr = KSPSetTolerances(_petsc_linear_solver.ksp(), PETSC_DEFAULT , 1e-11, PETSC_DEFAULT , 3000);
+    ierr = KSPSetTolerances(_petsc_linear_solver.ksp(), PETSC_DEFAULT , 1e-11, 1e60 , 3000);
     libmesh_assert(ierr == 0);
+
+    // override previous stuff if need be
+    ierr = KSPSetFromOptions(_petsc_linear_solver.ksp());
+    libmesh_assert(ierr == 0);
+
+    // print solver options
+    ierr =  KSPView(_petsc_linear_solver.ksp(), PETSC_VIEWER_STDOUT_WORLD);
+    libmesh_assert(ierr == 0);
+
   }
 
   // The linear solver object that we are configuring
@@ -35,7 +45,9 @@ public:
 
 };
 
-
+/****************************************************************************
+ *                                   MAIN                                   *
+ ****************************************************************************/
 // Begin the main program.
 int main (int argc, char** argv)
 {
@@ -62,8 +74,13 @@ int main (int argc, char** argv)
 	  mesh_name = getpot("mesh_name", "../mesh/simple_box_5.msh");
 	  gmsh.read(mesh_name);
   }
+  // broadcast the mesh
   MeshCommunication mc;
   mc.broadcast(mesh);
+  // paratition the mesh
+  MetisPartitioner metis;
+  metis.partition(mesh, init.comm().size());
+  // initialize the mesh
   mesh.prepare_for_use();
   mesh.all_second_order(true);
 
@@ -86,11 +103,11 @@ int main (int argc, char** argv)
   petsc_linear_solver->set_solver_configuration(petsc_solver_config);
 
   // Add three displacement variables, u and v, to the system
-  const Order order=SECOND;
-  const FEFamily fe_family=HIERARCHIC;
-  system.add_variable("u", order, fe_family);
-  system.add_variable("v", order, fe_family);
-  system.add_variable("w", order, fe_family);
+  const int order= getpot("order", (int)SECOND);
+  const int fe_family= getpot("fe_family",(int)HIERARCHIC);
+  system.add_variable("u", (Order)order, (FEFamily)fe_family);
+  system.add_variable("v", (Order)order, (FEFamily)fe_family);
+  system.add_variable("w", (Order)order, (FEFamily)fe_family);
 
   // add the assembler
   // Hard code material parameters for the sake of simplicity
@@ -102,12 +119,18 @@ int main (int argc, char** argv)
   const double mu = young_modulus/(2.*(1.+poisson_ratio));
 
   Material material(lambda, mu);
-  //TestCaseMMS test_case(material);
-  //TestCaseSphere test_case(material, 1, 2);
-  TestCaseBump test_case(material, 1 /*r*/, M_PI/6. /*vmax*/, 4 /*c*/, 0 /*b*/, init.comm());
-  test_case.project_on_bump_test();
+  UniquePtr<TestCase> test_case;
+  std::string test_case_str = getpot("test_case", "mms");
+  if(test_case_str == "mms")
+	  test_case.reset(new TestCaseMMS(material));
+  else if(test_case_str == "sphere")
+	  test_case.reset(new TestCaseSphere(material, 1, 2));
+  else if(test_case_str == "bump")
+	  test_case.reset(new TestCaseBump(material, 1 /*r*/, M_PI/6. /*vmax*/, 4 /*c*/, 2 /*b*/, init.comm()));
+  else
+	  libmesh_assert(0);
 
-  LinearElasticity le(equation_systems, material, test_case);
+  LinearElasticity le(equation_systems, material, *test_case);
   system.attach_assemble_object(le);
 
   // Initialize the data structures for the equation system.
@@ -116,24 +139,49 @@ int main (int argc, char** argv)
   // Print information about the system to the screen.
   equation_systems.print_info();
 
-  // Solve the system
+  // Solve the system and print reason
   system.solve();
+  petsc_linear_solver->print_converged_reason();
 
-  // Print the errors
-  le.post_process();
+  // output file name
+  std::string out_name = getpot("out_name", "displacement_and_stress");
+  std::stringstream string_stream;
+
+  /*
+   *   post process
+   */
+
+  // open the file
+  std::ofstream out_stream;
+  if (init.comm().rank() == 0)
+  {
+	  string_stream.str("");
+	  string_stream << out_name << ".pp";
+	  out_stream.open(string_stream.str().c_str(), std::ios::out);
+	  libmesh_assert(out_stream.good());
+  }
+
+  // post process and print in file
+  le.post_process(out_stream);
+
+  // close the file
+  if (init.comm().rank() == 0)
+  {
+	  out_stream.close();
+  }
 
   // Plot the solution
   // Use single precision in this case (reduces the size of the exodus file)
   ExodusII_IO exo_io(mesh, /*single_precision=*/true);
 
-  // First plot the displacement field using a nodal plot
   std::set<std::string> system_names;
   system_names.insert("Elasticity");
-  exo_io.write_equation_systems("displacement_and_stress.exo",equation_systems,&system_names);
 
-  //VTKIO vtk(mesh);
-  //vtk.write_equation_systems("disp.pvtu", equation_systems,&system_names);
-  gmsh.write_equation_systems("disp.msh", equation_systems,&system_names);
+  string_stream.str("");
+  string_stream << out_name << ".exo";
+
+  exo_io.write_equation_systems(string_stream.str(),equation_systems,&system_names);
+  std::cout << string_stream.str()  << std::endl;
 
   // All done.
   return 0;
